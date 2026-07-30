@@ -1,0 +1,155 @@
+#pragma once
+
+#include "../type_aliases.hpp"
+#include "VulkanBuffer.hpp"
+#include "VulkanDevice.hpp"
+#include "VulkanUtils.hpp"
+
+#include <memory>
+#include <unordered_map>
+
+
+namespace ve {
+
+struct	BoundingBox
+{
+	vec3	min;
+	vec3	max;
+};
+
+enum class MeshLayout : ui32
+{
+	VERTEX = 1 << 0,
+	NORMAL = 1 << 1,
+	TEXTURE = 1 << 2,
+	RANDOM_INDEX_TEXT = 1 << 3
+};
+
+constexpr MeshLayout operator|(MeshLayout a, MeshLayout b)
+{
+	return static_cast<MeshLayout>(static_cast<ui32>(a) | static_cast<ui32>(b));
+}
+
+constexpr bool operator&(MeshLayout a, MeshLayout b)
+{
+	return static_cast<ui32>(a) & static_cast<ui32>(b);
+}
+
+constexpr inline MeshLayout DEFAULT_MODEL_LAYOUT = MeshLayout::VERTEX | MeshLayout::NORMAL | MeshLayout::TEXTURE | MeshLayout::RANDOM_INDEX_TEXT;
+constexpr inline MeshLayout ONLY_VERTEX_LAYOUT = MeshLayout::VERTEX;
+constexpr inline MeshLayout FONT_MODEL_LAYOUT = MeshLayout::VERTEX | MeshLayout::TEXTURE;
+
+
+struct MeshLayoutDescription
+{
+	std::vector<VkVertexInputBindingDescription>	bindingConfig;
+	std::vector<VkVertexInputAttributeDescription>	attributeConfig;
+};
+
+
+class VulkanModel
+{
+	public:
+
+	struct Vertex
+	{
+		vec3	pos;
+		vec3	normal;
+		vec2	textureUv;
+		ui32	textureIndex;
+
+		bool operator==(const Vertex& other) const noexcept
+		{
+			return	pos == other.pos &&
+					normal == other.normal &&
+					textureUv == other.textureUv &&
+					textureIndex == other.textureIndex;
+		}
+		bool operator!=(const Vertex& other) const noexcept
+		{
+			return !(*this == other);
+		}
+		bool operator<(const Vertex& other) const noexcept
+		{
+			if (pos != other.pos)
+				return pos < other.pos;
+			if (normal != other.normal)
+				return normal < other.normal;
+			return textureUv < other.textureUv;
+		}
+	};
+
+	struct Builder
+	{
+		public:
+			std::vector<Vertex>	vertices{};
+			std::vector<ui32>	indices{};
+
+			void loadModel(const std::string& filepath);
+			void emptyData( void ) noexcept;
+	};
+
+	VulkanModel() = delete;
+	VulkanModel(VulkanDevice& device, const Builder& builder, ui32 binding = 0U, MeshLayout layout = DEFAULT_MODEL_LAYOUT);
+	VulkanModel(VulkanDevice& device, const std::vector<Vertex>& vertices, const std::vector<ui32>& indices, ui32 binding = 0U, MeshLayout layout = DEFAULT_MODEL_LAYOUT);
+	~VulkanModel(void) noexcept = default;
+
+	VulkanModel(const VulkanModel&) = delete;
+	VulkanModel(VulkanModel&&) = default;
+	VulkanModel& operator=(const VulkanModel&) = delete;
+	VulkanModel& operator=(VulkanModel&&) = delete;
+	
+	void	bindBuffer(VkCommandBuffer commandBuffer) const noexcept;
+	void	draw(VkCommandBuffer commandBuffer) const noexcept;
+	
+	void					setName(const std::string& name) { this->name = name; }
+	const vec3&				getVertexCenter() const noexcept { return this->vertexCenter; }
+	const vec3&				getBoundingCenter() const noexcept { return this->boundingCenter; }
+	const BoundingBox&		getBoundingBox() const noexcept { return this->boundingBox; }
+	void					setBoundingBox(const std::vector<Vertex>& vertices) noexcept;
+
+	static MeshLayoutDescription	getModelLayout(ui32 binding = 0U, MeshLayout type = DEFAULT_MODEL_LAYOUT) noexcept;
+
+	private:
+
+	std::string		name;
+	VulkanDevice&	vulkanDevice;
+	ui32			binding;
+	MeshLayout		layout;
+	bool			isIndexed{false};
+
+	ui32		vertexCount{0U};
+	ui32		indexCount{0U};
+
+	std::unique_ptr<VulkanBuffer>	vertexBuffer;
+	std::unique_ptr<VulkanBuffer>	indexBuffer;
+
+	vec3			vertexCenter{};
+	vec3			boundingCenter{};
+	BoundingBox		boundingBox{};
+
+	void	createVertexBuffer(const std::vector<Vertex>& vertices);
+	void	createIndexBuffer(const std::vector<ui32>& indices);
+
+	void	setObjectCenter() noexcept;
+	
+	static vec3	calculateVertexCenter(const std::vector<Vertex>& vertices) noexcept;
+};
+
+}	// namespace ve
+
+namespace std {
+
+template<>
+struct hash<ve::VulkanModel::Vertex>
+{
+	size_t operator()(ve::VulkanModel::Vertex const& vertex) const
+	{
+		size_t seed = 0;
+
+		ve::hashCombine(seed, vertex.pos, vertex.normal, vertex.textureUv);
+		return seed;
+	}
+};
+
+}	// namespace std
