@@ -71,11 +71,8 @@ VulkanWindow::VulkanWindow(VulkanWindow&& other) :
 
 VulkanWindow::~VulkanWindow()
 {
-	if (window)
-	{
-		glfwDestroyWindow(window);
-		glfwTerminate();
-	}
+	glfwDestroyWindow(window);
+	glfwTerminate();
 }
 
 VkExtent2D	VulkanWindow::getWindowSize() const noexcept
@@ -106,7 +103,7 @@ void	VulkanWindow::resetWindowSize(i32 width, i32 height) noexcept
 
 void	VulkanWindow::toggleFullscreen() noexcept
 {
-	if (isFullscreenWindow())
+	if (isFullscreenWindow() == true)
 	{
 		glfwSetWindowMonitor(window, nullptr, xPosNotFullscreen, yPosNotFullscreen, widthNotFullscreen, heightNotFullscreen, GLFW_DONT_CARE);
 	}

@@ -20,6 +20,6 @@ class Humanimation
 	Scene scene;
 
 	ve::VulkanWindow	window;
-	ve::VulkanDevice	device;
+	ve::VulkanDevice	device{window};
 	ve::VulkanRenderer	renderer;
 };
