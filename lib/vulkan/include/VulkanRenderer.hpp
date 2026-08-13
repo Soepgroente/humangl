@@ -23,7 +23,9 @@ class VulkanRenderer
 	~VulkanRenderer();
 	
 	VulkanRenderer(const VulkanRenderer&) = delete;
+	VulkanRenderer(VulkanRenderer&&) = delete;
 	VulkanRenderer& operator=(const VulkanRenderer&) = delete;
+	VulkanRenderer& operator=(VulkanRenderer&&) = delete;
 
 	VkRenderPass	getSwapChainRenderPass() const noexcept { return vulkanSwapChain->getRenderPass();}
 	bool			isFrameInProgress() const noexcept { return isFrameStarted; }

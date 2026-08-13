@@ -11,13 +11,13 @@
 
 namespace ve {
 
-VulkanSwapChain::VulkanSwapChain(VulkanDevice& deviceRef, VkExtent2D extent) : device{deviceRef}, windowExtent{extent}
+VulkanSwapChain::VulkanSwapChain(VulkanDevice& deviceRef, VkExtent2D extent) : device{deviceRef}, extent{extent}
 {
 	init();
 }
 
 VulkanSwapChain::VulkanSwapChain(VulkanDevice& deviceRef, VkExtent2D extent, std::shared_ptr<VulkanSwapChain> previous) 
-	: device{deviceRef}, windowExtent{extent}, oldSwapChain{previous}
+	: device{deviceRef}, extent{extent}, oldSwapChain{previous}
 {
 	init();
 
@@ -36,7 +36,7 @@ void	VulkanSwapChain::init()
 
 VulkanSwapChain::~VulkanSwapChain()
 {
-	for (auto imageView : swapChainImageViews)
+	for (VkImageView imageView : swapChainImageViews)
 	{
 		vkDestroyImageView(device.device(), imageView, nullptr);
 	}
@@ -55,7 +55,7 @@ VulkanSwapChain::~VulkanSwapChain()
 		vkFreeMemory(device.device(), depthImageMemorys[i], nullptr);
 	}
 
-	for (auto framebuffer : swapChainFramebuffers)
+	for (VkFramebuffer framebuffer : swapChainFramebuffers)
 	{
 		vkDestroyFramebuffer(device.device(), framebuffer, nullptr);
 	}
@@ -73,7 +73,7 @@ VulkanSwapChain::~VulkanSwapChain()
 	}
 }
 
-VkResult	VulkanSwapChain::acquireNextImage(ui32 *imageIndex) noexcept
+VkResult	VulkanSwapChain::acquireNextImage(ui32* imageIndex) noexcept
 {
 	vkWaitForFences(
 		device.device(),
@@ -149,31 +149,41 @@ VkResult	VulkanSwapChain::submitCommandBuffers(const VkCommandBuffer* buffers, u
 	return result;
 }
 
+static ui32	chooseImageCount(const ve::SwapChainSupportDetails& scsd)
+{
+	ui32 imageCount = scsd.capabilities.minImageCount + 1;
+
+	if (scsd.capabilities.maxImageCount > 0 && imageCount > scsd.capabilities.maxImageCount)
+	{
+		imageCount = scsd.capabilities.maxImageCount;
+	}
+	return imageCount;
+}
+
 void	VulkanSwapChain::createSwapChain()
 {
 	SwapChainSupportDetails swapChainSupport = device.getSwapChainSupport();
-	VkSurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(swapChainSupport.formats);
-	VkPresentModeKHR presentMode = chooseSwapPresentMode(swapChainSupport.presentModes);
-	VkExtent2D extent = chooseSwapExtent(swapChainSupport.capabilities);
-	ui32 imageCount = swapChainSupport.capabilities.minImageCount + 1;
+	this->surfaceFormat = chooseSwapSurfaceFormat(swapChainSupport.formats);
+	this->extent = chooseSwapExtent(swapChainSupport.capabilities);
+	ui32 imageCount = chooseImageCount(swapChainSupport);
 
-	if (swapChainSupport.capabilities.maxImageCount > 0 &&
-		imageCount > swapChainSupport.capabilities.maxImageCount)
+	VkSwapchainCreateInfoKHR createInfo
 	{
-		imageCount = swapChainSupport.capabilities.maxImageCount;
-	}
-
-	VkSwapchainCreateInfoKHR createInfo = {};
-
-	createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-	createInfo.surface = device.surface();
-
-	createInfo.minImageCount = imageCount;
-	createInfo.imageFormat = surfaceFormat.format;
-	createInfo.imageColorSpace = surfaceFormat.colorSpace;
-	createInfo.imageExtent = extent;
-	createInfo.imageArrayLayers = 1;
-	createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+		.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
+		.surface = device.surface(),
+		.minImageCount = imageCount,
+		.imageFormat = surfaceFormat.format,
+		.imageColorSpace = surfaceFormat.colorSpace,
+		.imageExtent = extent,
+		.imageArrayLayers = 1,
+		.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+		.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE,
+		.preTransform = swapChainSupport.capabilities.currentTransform,
+		.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
+		.presentMode = chooseSwapPresentMode(swapChainSupport.presentModes),
+		.clipped = VK_TRUE,
+		.oldSwapchain = oldSwapChain == nullptr ? VK_NULL_HANDLE : oldSwapChain->swapChain
+	};
 
 	QueueFamilyIndices indices = device.findPhysicalQueueFamilies();
 	ui32 queueFamilyIndices[] = {indices.graphicsFamily, indices.presentFamily};
@@ -184,18 +194,6 @@ void	VulkanSwapChain::createSwapChain()
 		createInfo.queueFamilyIndexCount = 2;
 		createInfo.pQueueFamilyIndices = queueFamilyIndices;
 	}
-	else
-	{
-		createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-	}
-
-	createInfo.preTransform = swapChainSupport.capabilities.currentTransform;
-	createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-
-	createInfo.presentMode = presentMode;
-	createInfo.clipped = VK_TRUE;
-
-	createInfo.oldSwapchain = oldSwapChain == nullptr ? VK_NULL_HANDLE : oldSwapChain->swapChain;
 
 	if (vkCreateSwapchainKHR(device.device(), &createInfo, nullptr, &swapChain) != VK_SUCCESS)
 	{
@@ -207,7 +205,6 @@ void	VulkanSwapChain::createSwapChain()
 	vkGetSwapchainImagesKHR(device.device(), swapChain, &imageCount, swapChainImages.data());
 
 	swapChainImageFormat = surfaceFormat.format;
-	swapChainExtent = extent;
 }
 
 void	VulkanSwapChain::createImageViews()
@@ -381,12 +378,8 @@ void	VulkanSwapChain::createSyncVulkanObjects()
 	inFlightFences.resize(MAX_FRAMES_IN_FLIGHT);
 	imagesInFlight.resize(imageCount(), VK_NULL_HANDLE);
 
-	VkSemaphoreCreateInfo semaphoreInfo = {};
-	semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-
-	VkFenceCreateInfo fenceInfo = {};
-	fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-	fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+	VkSemaphoreCreateInfo semaphoreInfo { .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO };
+	VkFenceCreateInfo fenceInfo { .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO, .flags = VK_FENCE_CREATE_SIGNALED_BIT };
 
 	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 	{
@@ -407,6 +400,7 @@ void	VulkanSwapChain::createSyncVulkanObjects()
 
 VkSurfaceFormatKHR	VulkanSwapChain::chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats) const noexcept
 {
+	assert(availableFormats.empty() == false && "No available formats for window surface");
 	for (const VkSurfaceFormatKHR& availableFormat : availableFormats)
 	{
 		if (availableFormat.format == VK_FORMAT_B8G8R8A8_SRGB &&
@@ -424,12 +418,11 @@ VkPresentModeKHR	VulkanSwapChain::chooseSwapPresentMode(const std::vector<VkPres
 	{
 		if (availablePresentMode == VK_PRESENT_MODE_MAILBOX_KHR)
 		{
-			// std::cout << "Present mode: Mailbox available" << std::endl;
-			;
-			// return availablePresentMode;
+			std::cout << "Present mode: Mailbox available" << std::endl;
+			return availablePresentMode;
 		}
 	}
-	// std::cout << "Choosing present mode: V-Sync (forced)" << std::endl;
+	std::cout << "Choosing present mode: V-Sync" << std::endl;
 	return VK_PRESENT_MODE_FIFO_KHR;
 }
 
@@ -441,7 +434,8 @@ VkExtent2D	VulkanSwapChain::chooseSwapExtent(const VkSurfaceCapabilitiesKHR& cap
 	}
 	else
 	{
-		VkExtent2D actualExtent = windowExtent;
+		VkExtent2D actualExtent = extent;
+
 		actualExtent.width = std::max(
 			capabilities.minImageExtent.width,
 			std::min(capabilities.maxImageExtent.width, actualExtent.width));

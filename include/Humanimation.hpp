@@ -7,7 +7,7 @@ class Humanimation
 {
 	public:
 
-	Humanimation() = default;
+	Humanimation();
 	~Humanimation();
 	Humanimation(const Humanimation&) = delete;
 	Humanimation(const Humanimation&&) = delete;
@@ -20,6 +20,6 @@ class Humanimation
 	Scene scene;
 
 	ve::VulkanWindow	window;
-	ve::VulkanDevice	device{window};
+	ve::VulkanDevice	device;
 	ve::VulkanRenderer	renderer;
 };

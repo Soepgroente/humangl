@@ -50,6 +50,7 @@ class VulkanSwapChain
 	VkPresentModeKHR	chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes)	const noexcept;
 	VkExtent2D			chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities)	const noexcept;
 
+	VkSurfaceFormatKHR	surfaceFormat;
 	VkFormat	swapChainImageFormat;
 	VkFormat	swapChainDepthFormat;
 	VkExtent2D	swapChainExtent;
@@ -64,7 +65,7 @@ class VulkanSwapChain
 	std::vector<VkImageView>	swapChainImageViews;
 
 	VulkanDevice&	device;
-	VkExtent2D		windowExtent;
+	VkExtent2D		extent;
 	VkSwapchainKHR	swapChain;
 
 	std::shared_ptr<VulkanSwapChain>	oldSwapChain;

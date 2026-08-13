@@ -5,7 +5,6 @@ Humanimation::Humanimation() :
 	device{window},
 	renderer{window, device}
 {
-
 }
 
 Humanimation::~Humanimation()

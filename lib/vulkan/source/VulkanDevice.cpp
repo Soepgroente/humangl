@@ -180,7 +180,7 @@ void VulkanDevice::createLogicalDevice()
 	std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
 	std::set<ui32> uniqueQueueFamilies = { indices.graphicsFamily, indices.presentFamily };
 
-	f32 queuePriority = 1.0f;
+	f32 queuePriority = 0.5f;
 	for (ui32 queueFamily : uniqueQueueFamilies)
 	{
 		queueCreateInfos.emplace_back(VkDeviceQueueCreateInfo {
@@ -198,14 +198,25 @@ void VulkanDevice::createLogicalDevice()
 		.imageCubeArray = VK_TRUE
 	};
 
-	// Vulkan 1.3 features
+	// Vulkan 1.2 features
+	VkPhysicalDeviceVulkan12Features enabledVk12Features
+	{
+		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
+		.descriptorIndexing = true,
+		.shaderSampledImageArrayNonUniformIndexing = true,
+		.descriptorBindingVariableDescriptorCount = true,
+		.runtimeDescriptorArray = true,
+		.bufferDeviceAddress = true
+	};
+
+	// Vulkan 1.3 features (include vk1.2 features)
 	VkPhysicalDeviceVulkan13Features features13
 	{
-		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES
+		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES,
+		.pNext = &enabledVk12Features,
+		.synchronization2 = true,
+		.dynamicRendering = true
 	};
-	// Enable only what you actually need, examples:
-	// features13.dynamicRendering = VK_TRUE;
-	// features13.synchronization2 = VK_TRUE;
 
 	// Descriptor indexing (bindless/non-uniform indexing related)
 	VkPhysicalDeviceDescriptorIndexingFeatures indexingFeatures
@@ -236,36 +247,12 @@ void VulkanDevice::createLogicalDevice()
 		throw std::runtime_error("Required Vulkan device features are not supported.");
 	}
 
-	VkPhysicalDeviceVulkan13Features enable13
-	{
-		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES
-	};
-	// enable13.dynamicRendering = VK_TRUE;
-	// enable13.synchronization2 = VK_TRUE;
-
-	VkPhysicalDeviceDescriptorIndexingFeatures enableIndexing
-	{
-		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES,
-		.shaderSampledImageArrayNonUniformIndexing = VK_TRUE,
-		.runtimeDescriptorArray = VK_TRUE,
-		.descriptorBindingPartiallyBound = VK_TRUE,
-		.descriptorBindingVariableDescriptorCount = VK_TRUE
-	};
-	enable13.pNext = &enableIndexing;
-
-	VkPhysicalDeviceFeatures2 enabledFeatures2
-	{
-		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
-		.features = coreFeatures,
-		.pNext = &enable13
-	};
-
 	VkDeviceCreateInfo createInfo
 	{
 		.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
 		.queueCreateInfoCount = static_cast<ui32>(queueCreateInfos.size()),
 		.pQueueCreateInfos = queueCreateInfos.data(),
-		.pNext = &enabledFeatures2,
+		.pNext = &supportedFeatures2,
 		.pEnabledFeatures = nullptr,
 		.enabledExtensionCount = static_cast<ui32>(deviceExtensions.size()),
 		.ppEnabledExtensionNames = deviceExtensions.data()
@@ -334,13 +321,11 @@ bool	VulkanDevice::isDeviceSuitable(VkPhysicalDevice device)
 	}
 
 	VkPhysicalDeviceVulkan13Features features13{.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES};
-
 	VkPhysicalDeviceDescriptorIndexingFeatures indexing
 	{
 		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES,
 		.pNext = &indexing
 	};
-
 	VkPhysicalDeviceFeatures2 features2
 	{
 		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
@@ -548,7 +533,7 @@ SwapChainSupportDetails	VulkanDevice::querySwapChainSupport(VkPhysicalDevice dev
 }
 
 VkFormat	VulkanDevice::findSupportedFormat(
-	const std::vector<VkFormat> &candidates, VkImageTiling tiling, VkFormatFeatureFlags features)
+	const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features)
 {
 	for (VkFormat format : candidates)
 	{
@@ -820,25 +805,35 @@ VkImageView	VulkanDevice::createImageView(
 	ui32 layerCount,
 	TextureType textureType)
 {
+	VkComponentMapping components
+	{
+		VK_COMPONENT_SWIZZLE_IDENTITY,
+		VK_COMPONENT_SWIZZLE_IDENTITY,
+		VK_COMPONENT_SWIZZLE_IDENTITY,
+		VK_COMPONENT_SWIZZLE_IDENTITY
+	};
 	VkImageViewCreateInfo viewInfo
 	{
 		.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+		.viewType = VK_IMAGE_VIEW_TYPE_2D,
 		.image = image,
 		.format = format,
+		.components =
+		{
+			VK_COMPONENT_SWIZZLE_IDENTITY,
+			VK_COMPONENT_SWIZZLE_IDENTITY,
+			VK_COMPONENT_SWIZZLE_IDENTITY,
+			VK_COMPONENT_SWIZZLE_IDENTITY
+		},
 		.subresourceRange.aspectMask = aspectFlags,
 		.subresourceRange.baseMipLevel = 0,
 		.subresourceRange.levelCount = 1,
 		.subresourceRange.baseArrayLayer = 0,
-		.subresourceRange.layerCount = layerCount
+		.subresourceRange.layerCount = layerCount,
 	};
-
 	if (textureType == TEXTURE_CUBEMAP)
 	{
 		viewInfo.viewType = VK_IMAGE_VIEW_TYPE_CUBE;
-	}
-	else 
-	{
-		viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
 	}
 
 	VkImageView imageView{};
