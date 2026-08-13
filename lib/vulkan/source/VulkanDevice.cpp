@@ -9,6 +9,9 @@
 #include <set>
 #include <unordered_set>
 
+#include <vulkan/vulkan.hpp>
+#include <vulkan/vulkan_raii.hpp>
+
 namespace ve {
 
 static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
@@ -164,72 +167,117 @@ void VulkanDevice::pickPhysicalDevice()
 	}
 }
 
-void	VulkanDevice::createLogicalDevice()
+void VulkanDevice::createLogicalDevice()
 {
 	#ifdef __APPLE__
-	deviceExtensions.push_back("VK_KHR_portability_subset");
+    	deviceExtensions.push_back("VK_KHR_portability_subset");
 	#endif
-	QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
 
-	std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
-	std::set<ui32> uniqueQueueFamilies = {indices.graphicsFamily, indices.presentFamily};
+    QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
 
-	f32 queuePriority = 0.5f;
-	for (ui32 queueFamily : uniqueQueueFamilies)
-	{
-		VkDeviceQueueCreateInfo queueCreateInfo = {};
+    std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
+    std::set<ui32> uniqueQueueFamilies = { indices.graphicsFamily, indices.presentFamily };
 
-		queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-		queueCreateInfo.queueFamilyIndex = queueFamily;
-		queueCreateInfo.queueCount = 1;
-		queueCreateInfo.pQueuePriorities = &queuePriority;
-		queueCreateInfos.push_back(queueCreateInfo);
-	}
+    f32 queuePriority = 1.0f;
+    for (ui32 queueFamily : uniqueQueueFamilies)
+    {
+        VkDeviceQueueCreateInfo queueCreateInfo{};
 
-	VkPhysicalDeviceFeatures supportedFeatures;
-    vkGetPhysicalDeviceFeatures(physicalDevice, &supportedFeatures);
+        queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+        queueCreateInfo.queueFamilyIndex = queueFamily;
+        queueCreateInfo.queueCount = 1;
+        queueCreateInfo.pQueuePriorities = &queuePriority;
+        queueCreateInfos.push_back(queueCreateInfo);
+    }
 
-	VkPhysicalDeviceFeatures deviceFeatures = {};
-	deviceFeatures.samplerAnisotropy = VK_TRUE;
-	deviceFeatures.imageCubeArray = VK_TRUE;
+    // Core "old-style" features (VkPhysicalDeviceFeatures)
+    VkPhysicalDeviceFeatures coreFeatures{};
 
-	VkDeviceCreateInfo createInfo = {};
+    coreFeatures.samplerAnisotropy = VK_TRUE;
+    coreFeatures.imageCubeArray = VK_TRUE;
 
-	createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-	createInfo.queueCreateInfoCount = static_cast<ui32>(queueCreateInfos.size());
-	createInfo.pQueueCreateInfos = queueCreateInfos.data();
-	createInfo.pEnabledFeatures = &deviceFeatures;
-	createInfo.enabledExtensionCount = static_cast<ui32>(deviceExtensions.size());
-	createInfo.ppEnabledExtensionNames = deviceExtensions.data();
+    // Vulkan 1.3 features
+    VkPhysicalDeviceVulkan13Features features13{};
 
-	if (enableValidationLayers == true)
-	{
-		createInfo.enabledLayerCount = static_cast<ui32>(validationLayers.size());
-		createInfo.ppEnabledLayerNames = validationLayers.data();
-	}
+    features13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
+    // Enable only what you actually need, examples:
+    // features13.dynamicRendering = VK_TRUE;
+    // features13.synchronization2 = VK_TRUE;
 
-	ui32 deviceApiVersion;
-	vkEnumerateInstanceVersion(&deviceApiVersion);
-	VkPhysicalDeviceVulkan13Features features13{};
-	if (deviceApiVersion >= VK_API_VERSION_1_3)
-	{
-		// enable GL_EXT_nonuniform_qualifier feature for dynamic indexing
-		// in bindless mode accessing descriptors uniform/storage
-		features13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
-		features13.shaderSampledImageArrayNonUniformIndexing = VK_TRUE;
-		features13.descriptorIndexing = VK_TRUE;
-		features13.runtimeDescriptorArray = VK_TRUE;
+    // Descriptor indexing (bindless/non-uniform indexing related)
+    VkPhysicalDeviceDescriptorIndexingFeatures indexingFeatures{};
+    indexingFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES;
+    indexingFeatures.shaderSampledImageArrayNonUniformIndexing = VK_TRUE;
+    indexingFeatures.runtimeDescriptorArray = VK_TRUE;
+    indexingFeatures.descriptorBindingPartiallyBound = VK_TRUE;
+    indexingFeatures.descriptorBindingVariableDescriptorCount = VK_TRUE;
 
-		createInfo.pNext = &features13;
-	}
+    // Query support first via features2 chain
+    VkPhysicalDeviceFeatures2 supportedFeatures2{};
+    supportedFeatures2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+    supportedFeatures2.pNext = &features13;
+    features13.pNext = &indexingFeatures;
 
-	if (vkCreateDevice(physicalDevice, &createInfo, nullptr, &device_) != VK_SUCCESS)
-	{
-		throw std::runtime_error("failed to create logical device!");
-	}
+    vkGetPhysicalDeviceFeatures2(physicalDevice, &supportedFeatures2);
 
-	vkGetDeviceQueue(device_, indices.graphicsFamily, 0, &graphicsQueue_);
-	vkGetDeviceQueue(device_, indices.presentFamily, 0, &presentQueue_);
+    // Validate required features are actually supported
+    if (supportedFeatures2.features.samplerAnisotropy == false ||
+        supportedFeatures2.features.imageCubeArray == false ||
+        indexingFeatures.shaderSampledImageArrayNonUniformIndexing == false ||
+        indexingFeatures.runtimeDescriptorArray == false)
+    {
+        throw std::runtime_error("Required Vulkan device features are not supported.");
+    }
+
+    VkPhysicalDeviceVulkan13Features enable13{};
+
+    enable13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
+    // enable13.dynamicRendering = VK_TRUE;
+    // enable13.synchronization2 = VK_TRUE;
+
+    VkPhysicalDeviceDescriptorIndexingFeatures enableIndexing{};
+
+    enableIndexing.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES;
+    enableIndexing.shaderSampledImageArrayNonUniformIndexing = VK_TRUE;
+    enableIndexing.runtimeDescriptorArray = VK_TRUE;
+    enableIndexing.descriptorBindingPartiallyBound = VK_TRUE;
+    enableIndexing.descriptorBindingVariableDescriptorCount = VK_TRUE;
+
+    enable13.pNext = &enableIndexing;
+
+    VkPhysicalDeviceFeatures2 enabledFeatures2{};
+
+    enabledFeatures2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+    enabledFeatures2.features = coreFeatures;
+    enabledFeatures2.pNext = &enable13;
+
+    VkDeviceCreateInfo createInfo{};
+
+    createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+    createInfo.queueCreateInfoCount = static_cast<ui32>(queueCreateInfos.size());
+    createInfo.pQueueCreateInfos = queueCreateInfos.data();
+    createInfo.pNext = &enabledFeatures2;
+    createInfo.pEnabledFeatures = nullptr;
+    createInfo.enabledExtensionCount = static_cast<ui32>(deviceExtensions.size());
+    createInfo.ppEnabledExtensionNames = deviceExtensions.data();
+
+    if (enableValidationLayers == true)
+    {
+        createInfo.enabledLayerCount = static_cast<ui32>(validationLayers.size());
+        createInfo.ppEnabledLayerNames = validationLayers.data();
+    }
+    else
+    {
+        createInfo.enabledLayerCount = 0;
+    }
+
+    if (vkCreateDevice(physicalDevice, &createInfo, nullptr, &device_) != VK_SUCCESS)
+    {
+        throw std::runtime_error("failed to create logical device!");
+    }
+
+    vkGetDeviceQueue(device_, indices.graphicsFamily, 0, &graphicsQueue_);
+    vkGetDeviceQueue(device_, indices.presentFamily, 0, &presentQueue_);
 }
 
 void	VulkanDevice::createCommandPool()
@@ -252,35 +300,53 @@ void	VulkanDevice::createSurface() { window.createWindowSurface(instance, &surfa
 bool	VulkanDevice::isDeviceSuitable(VkPhysicalDevice device)
 {
 	QueueFamilyIndices indices = findQueueFamilies(device);
-	bool extensionsSupported = checkDeviceExtensionSupport(device);
-	bool swapChainAdequate = false;
-
-	if (extensionsSupported == true)
+	if (indices.isComplete() == false || checkDeviceExtensionSupport(device) == false)
 	{
-		SwapChainSupportDetails swapChainSupport = querySwapChainSupport(device);
-		swapChainAdequate = !swapChainSupport.formats.empty() && !swapChainSupport.presentModes.empty();
+		return false;
 	}
-	
-	VkPhysicalDeviceFeatures	supportedFeatures;
-	vkGetPhysicalDeviceFeatures(device, &supportedFeatures);
 
-	return indices.isComplete() == true && \
-			extensionsSupported == true && \
-			swapChainAdequate == true && \
-			supportedFeatures.samplerAnisotropy == true && \
-			supportedFeatures.geometryShader == true;
+	SwapChainSupportDetails swapChainSupport = querySwapChainSupport(device);
+	bool swapChainAdequate = !swapChainSupport.formats.empty() &&
+							!swapChainSupport.presentModes.empty();
+	if (!swapChainAdequate)
+		return false;
 
-/* 	Potentially add this later if more strictness needed
+	// Check device API version (physical device, not instance)
+	VkPhysicalDeviceProperties props{};
+	vkGetPhysicalDeviceProperties(device, &props);
+	if (props.apiVersion < VK_API_VERSION_1_3)
+		return false;
 
-	// Check if the physicalDevice supports the required features (shader draw parameters, dynamic rendering and extended dynamic state)
-	auto features                 = physicalDevice.template getFeatures2<vk::PhysicalDeviceFeatures2,
-																		vk::PhysicalDeviceVulkan11Features,
-																		vk::PhysicalDeviceVulkan13Features,
-																		vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT>();
-	bool supportsRequiredFeatures = features.template get<vk::PhysicalDeviceVulkan11Features>().shaderDrawParameters &&
-									features.template get<vk::PhysicalDeviceVulkan13Features>().dynamicRendering &&
-									features.template get<vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT>().extendedDynamicState;
-*/
+	// Query feature chain
+	VkPhysicalDeviceVulkan13Features features13{};
+	features13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
+
+	VkPhysicalDeviceDescriptorIndexingFeatures indexing{};
+	indexing.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES;
+	features13.pNext = &indexing;
+
+	VkPhysicalDeviceFeatures2 features2{};
+	features2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+	features2.pNext = &features13;
+
+	vkGetPhysicalDeviceFeatures2(device, &features2);
+
+	// Core features you already require
+	if (!features2.features.samplerAnisotropy) return false;
+	if (!features2.features.geometryShader) return false; // keep only if you truly need it
+
+	// If you rely on bindless/non-uniform indexing:
+	if (!indexing.shaderSampledImageArrayNonUniformIndexing) return false;
+	if (!indexing.runtimeDescriptorArray) return false;
+	// Optional but commonly needed in bindless designs:
+	if (!indexing.descriptorBindingPartiallyBound) return false;
+	if (!indexing.descriptorBindingVariableDescriptorCount) return false;
+
+	// If your renderer uses these Vulkan 1.3 features, enforce them:
+	// if (!features13.dynamicRendering) return false;
+	// if (!features13.synchronization2) return false;
+
+	return true;
 }
 
 void	VulkanDevice::populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo)
@@ -380,23 +446,26 @@ void	VulkanDevice::hasGflwRequiredInstanceExtensions()
 
 bool	VulkanDevice::checkDeviceExtensionSupport(VkPhysicalDevice device)
 {
-    ui32 extensionCount;
-    vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, nullptr);
+	ui32 extensionCount;
+	if (vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, nullptr) != VK_SUCCESS)
+	{
+		return false;
+	}
 
-    std::vector<VkExtensionProperties> availableExtensions(extensionCount);
-    vkEnumerateDeviceExtensionProperties(
-        device,
-        nullptr,
-        &extensionCount,
-        availableExtensions.data()
-    );
+	std::vector<VkExtensionProperties> availableExtensions(extensionCount);
+	vkEnumerateDeviceExtensionProperties(
+		device,
+		nullptr,
+		&extensionCount,
+		availableExtensions.data()
+	);
 
-    std::set<std::string> requiredExtensions(deviceExtensions.begin(), deviceExtensions.end());
+	std::set<std::string> requiredExtensions(deviceExtensions.begin(), deviceExtensions.end());
 	for (const VkExtensionProperties& extension : availableExtensions)
 	{
 		requiredExtensions.erase(extension.extensionName);
 	}
-    return requiredExtensions.empty();
+	return requiredExtensions.empty();
 }
 
 QueueFamilyIndices	VulkanDevice::findQueueFamilies(VkPhysicalDevice device)

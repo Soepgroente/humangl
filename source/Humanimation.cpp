@@ -2,7 +2,7 @@
 
 Humanimation::Humanimation() :
 	window{"Humangl", false, 800, 600},
-	device{window, "humangl"},
+	device{window},
 	renderer{window, device}
 {
 

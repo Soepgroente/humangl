@@ -32,7 +32,6 @@ enum TextureType
 	TEXTURE_FONT
 };
 
-
 class VulkanDevice
 {
 	public:
@@ -128,7 +127,7 @@ class VulkanDevice
 	bool	checkValidationLayerSupport();
 	bool	checkDeviceExtensionSupport(VkPhysicalDevice device);
 	void	hasGflwRequiredInstanceExtensions();
-	void	populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT &createInfo);
+	void	populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo);
 
 	std::vector<const char*>	getRequiredExtensions();
 	QueueFamilyIndices			findQueueFamilies(VkPhysicalDevice device);
