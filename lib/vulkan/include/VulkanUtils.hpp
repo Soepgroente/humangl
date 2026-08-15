@@ -4,8 +4,10 @@
 #include <random>
 #include <chrono>
 #include <vector>
+#include <stdexcept>
 
 #include "Vectors.hpp"
+#include <vulkan/vulkan_core.h>
 
 namespace ve {
 
@@ -22,6 +24,7 @@ ui32	randomUint(ui32 min = 0U, ui32 max = 1000U);
 vec3	generateRandomColor();
 vec3	generateRandomGreyscale();
 vec3	generateSoftGreyscale();
+void	errorCheck(VkResult result, const char* errorMessage);
 
 std::vector<unsigned char>	readFile(const std::string& filePath);
 

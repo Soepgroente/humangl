@@ -1,4 +1,5 @@
 #include "VulkanSwapChain.hpp"
+#include "VulkanUtils.hpp"
 
 #include <array>
 #include <cassert>
@@ -123,10 +124,7 @@ VkResult	VulkanSwapChain::submitCommandBuffers(const VkCommandBuffer* buffers, u
 	submitInfo.pSignalSemaphores = signalSemaphores;
 
 	vkResetFences(device.device(), 1, &inFlightFences[currentFrame]);
-	if (vkQueueSubmit(device.graphicsQueue(), 1, &submitInfo, inFlightFences[currentFrame]) != VK_SUCCESS)
-	{
-		throw std::runtime_error("failed to submit draw command buffer!");
-	}
+	errorCheck(vkQueueSubmit(device.graphicsQueue(), 1, &submitInfo, inFlightFences[currentFrame]), "failed to submit draw command buffer!");
 
 	VkPresentInfoKHR presentInfo = {};
 
@@ -195,10 +193,7 @@ void	VulkanSwapChain::createSwapChain()
 		createInfo.pQueueFamilyIndices = queueFamilyIndices;
 	}
 
-	if (vkCreateSwapchainKHR(device.device(), &createInfo, nullptr, &swapChain) != VK_SUCCESS)
-	{
-		throw std::runtime_error("failed to create swap chain!");
-	}
+	errorCheck(vkCreateSwapchainKHR(device.device(), &createInfo, nullptr, &swapChain), "failed to create swap chain!");
 
 	vkGetSwapchainImagesKHR(device.device(), swapChain, &imageCount, nullptr);
 	swapChainImages.resize(imageCount);
@@ -284,10 +279,7 @@ void	VulkanSwapChain::createRenderPass()
 	renderPassInfo.dependencyCount = 1;
 	renderPassInfo.pDependencies = &dependency;
 
-	if (vkCreateRenderPass(device.device(), &renderPassInfo, nullptr, &renderPass) != VK_SUCCESS)
-	{
-		throw std::runtime_error("failed to create render pass!");
-	}
+	errorCheck(vkCreateRenderPass(device.device(), &renderPassInfo, nullptr, &renderPass), "failed to create render pass!");
 }
 
 void	VulkanSwapChain::createFramebuffers()
@@ -308,14 +300,11 @@ void	VulkanSwapChain::createFramebuffers()
 		framebufferInfo.height = swapChainExtent.height;
 		framebufferInfo.layers = 1;
 
-		if (vkCreateFramebuffer(
+		errorCheck(vkCreateFramebuffer(
 				device.device(),
 				&framebufferInfo,
 				nullptr,
-				&swapChainFramebuffers[i]) != VK_SUCCESS)
-		{
-			throw std::runtime_error("failed to create framebuffer!");
-		}
+				&swapChainFramebuffers[i]), "failed to create framebuffer!");
 	}
 }
 
@@ -364,10 +353,7 @@ void	VulkanSwapChain::createDepthResources()
 		viewInfo.subresourceRange.baseArrayLayer = 0;
 		viewInfo.subresourceRange.layerCount = 1;
 
-		if (vkCreateImageView(device.device(), &viewInfo, nullptr, &depthImageViews[i]) != VK_SUCCESS)
-		{
-			throw std::runtime_error("failed to create texture image view!");
-		}
+		errorCheck(vkCreateImageView(device.device(), &viewInfo, nullptr, &depthImageViews[i]), "failed to create texture image view!");
 	}
 }
 
@@ -383,18 +369,13 @@ void	VulkanSwapChain::createSyncVulkanObjects()
 
 	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 	{
-		if (vkCreateSemaphore(device.device(), &semaphoreInfo, nullptr, &imageAvailableSemaphores[i]) != VK_SUCCESS ||
-			vkCreateFence(device.device(), &fenceInfo, nullptr, &inFlightFences[i]) != VK_SUCCESS)
-		{
-			throw std::runtime_error("failed to create synchronization VulkanObjects for a frame!");
-		}
+		errorCheck(vkCreateSemaphore(device.device(), &semaphoreInfo, nullptr, &imageAvailableSemaphores[i]), "failed to create synchronization VulkanObjects for a frame!");
+		errorCheck(vkCreateFence(device.device(), &fenceInfo, nullptr, &inFlightFences[i]), "failed to create synchronization VulkanObjects for a frame!");
 	}
 	for (size_t i = 0; i < imageCount(); i++)
 	{
-		if (vkCreateSemaphore(device.device(), &semaphoreInfo, nullptr, &renderFinishedSemaphores[i]) != VK_SUCCESS)
-		{
-			throw std::runtime_error("failed to create synchronization VulkanObjects for a frame!");
-		}
+		errorCheck(vkCreateSemaphore(device.device(), &semaphoreInfo, nullptr, &renderFinishedSemaphores[i]),
+			"failed to create synchronization VulkanObjects for a frame!");
 	}
 }
 

@@ -4,7 +4,6 @@
 #include <string>
 #include <cassert>
 
-
 namespace ve {
 
 f32 randomFloat(f32 min, f32 max)
@@ -27,7 +26,7 @@ i32 randomInt(i32 min, i32 max)
 
 ui32 randomUint(ui32 min, ui32 max)
 {
-	assert( min < max && "Min value is bigger than max");
+	assert(min < max && "Min value is bigger than max");
 
 	static std::default_random_engine engine(std::chrono::system_clock::now().time_since_epoch().count());
     std::uniform_int_distribution<ui32> distribution(min, max);
@@ -55,6 +54,13 @@ vec3	generateSoftGreyscale()
 	return vec3(grey, grey, grey);
 }
 
+void	errorCheck(VkResult result, const char* errorMessage)
+{
+	if (result != VK_SUCCESS)
+	{
+		throw std::runtime_error(errorMessage);
+	}
+}
 
 std::vector<unsigned char> readFile(const std::string& filePath)
 {

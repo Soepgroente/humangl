@@ -15,7 +15,7 @@ RELEASE_FLAGS   := -O2 -DNDEBUG -march=native -flto -fno-math-errno -fno-plt -ff
 # -funroll-loops	-->	unpack loops
 DEPS_FLAGS      := -MMD -MP -MF
 
-GLSLC           := $(shell which glslc)
+SLANG_COMPILER	:= $(shell which slangc)
 
 SRC_DIR         := source
 SHADERS_DIR     := shaders
@@ -98,7 +98,7 @@ $(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp
 
 $(SHADERS_OUT_DIR)/%.spv: $(SHADERS_DIR)/%
 	@mkdir -p $(dir $@)
-	$(GLSLC) $< -o $@
+	$(SLANG_COMPILER) $< -o $@
 
 -include $(DEPS)
 

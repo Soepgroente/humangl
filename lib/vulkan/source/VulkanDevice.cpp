@@ -1,5 +1,6 @@
-#include "VulkanDevice.hpp"
 #include "Vectors.hpp"
+#include "VulkanDevice.hpp"
+#include "VulkanUtils.hpp"
 
 // std headers
 #include <cstring>
@@ -8,9 +9,6 @@
 #include <map>
 #include <set>
 #include <unordered_set>
-
-#include <vulkan/vulkan.hpp>
-#include <vulkan/vulkan_raii.hpp>
 
 namespace ve {
 
@@ -34,7 +32,7 @@ VkResult	CreateDebugUtilsMessengerEXT(
 	const VkAllocationCallbacks* pAllocator,
 	VkDebugUtilsMessengerEXT* pDebugMessenger)
 {
-	auto func = (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT");
+	PFN_vkCreateDebugUtilsMessengerEXT func = (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT");
 	if (func != nullptr)
 	{
 		return func(instance, pCreateInfo, pAllocator, pDebugMessenger);
@@ -50,7 +48,7 @@ void	DestroyDebugUtilsMessengerEXT(
 	VkDebugUtilsMessengerEXT debugMessenger,
 	const VkAllocationCallbacks* pAllocator)
 {
-	auto func = (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(
+	PFN_vkDestroyDebugUtilsMessengerEXT func = (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(
 		instance,
 		"vkDestroyDebugUtilsMessengerEXT");
 	if (func != nullptr)
@@ -123,10 +121,7 @@ void VulkanDevice::createInstance()
 		populateDebugMessengerCreateInfo(debugCreateInfo);
 		createInfo.pNext = (VkDebugUtilsMessengerCreateInfoEXT*)&debugCreateInfo;
 	}
-	if (vkCreateInstance(&createInfo, nullptr, &instance) != VK_SUCCESS)
-	{
-		throw std::runtime_error("failed to create instance!");
-	}
+	errorCheck(vkCreateInstance(&createInfo, nullptr, &instance), "failed to create instance!");
 	hasGflwRequiredInstanceExtensions();
 }
 
@@ -267,11 +262,7 @@ void VulkanDevice::createLogicalDevice()
 	{
 		createInfo.enabledLayerCount = 0;
 	}
-
-	if (vkCreateDevice(physicalDevice, &createInfo, nullptr, &device_) != VK_SUCCESS)
-	{
-		throw std::runtime_error("failed to create logical device!");
-	}
+	errorCheck(vkCreateDevice(physicalDevice, &createInfo, nullptr, &device_), "failed to create logical device!");
 
 	vkGetDeviceQueue(device_, indices.graphicsFamily, 0, &graphicsQueue_);
 	vkGetDeviceQueue(device_, indices.presentFamily, 0, &presentQueue_);
@@ -288,10 +279,7 @@ void	VulkanDevice::createCommandPool()
 		.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT
 	};
 
-	if (vkCreateCommandPool(device_, &poolInfo, nullptr, &commandPool) != VK_SUCCESS)
-	{
-		throw std::runtime_error("failed to create command pool!");
-	}
+	errorCheck(vkCreateCommandPool(device_, &poolInfo, nullptr, &commandPool), "failed to create command pool!");
 }
 
 void	VulkanDevice::createSurface()
@@ -373,10 +361,7 @@ void	VulkanDevice::setupDebugMessenger()
 	VkDebugUtilsMessengerCreateInfoEXT createInfo;
 
 	populateDebugMessengerCreateInfo(createInfo);
-	if (CreateDebugUtilsMessengerEXT(instance, &createInfo, nullptr, &debugMessenger) != VK_SUCCESS)
-	{
-		throw std::runtime_error("failed to set up debug messenger!");
-	}
+	errorCheck(CreateDebugUtilsMessengerEXT(instance, &createInfo, nullptr, &debugMessenger), "failed to set up debug messenger!");
 }
 
 bool	VulkanDevice::checkValidationLayerSupport()
@@ -580,10 +565,7 @@ void	VulkanDevice::createBuffer(
 		.sharingMode = VK_SHARING_MODE_EXCLUSIVE
 	};
 
-	if (vkCreateBuffer(device_, &bufferInfo, nullptr, &buffer) != VK_SUCCESS)
-	{
-		throw std::runtime_error("failed to create vertex buffer!");
-	}
+	errorCheck(vkCreateBuffer(device_, &bufferInfo, nullptr, &buffer), "failed to create vertex buffer!");
 
 	VkMemoryRequirements memRequirements;
 	vkGetBufferMemoryRequirements(device_, buffer, &memRequirements);
@@ -595,10 +577,7 @@ void	VulkanDevice::createBuffer(
 		.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, properties)
 	};
 
-	if (vkAllocateMemory(device_, &allocInfo, nullptr, &bufferMemory) != VK_SUCCESS)
-	{
-		throw std::runtime_error("failed to allocate vertex buffer memory!");
-	}
+	errorCheck(vkAllocateMemory(device_, &allocInfo, nullptr, &bufferMemory), "failed to allocate vertex buffer memory!");
 
 	vkBindBufferMemory(device_, buffer, bufferMemory, 0);
 }
@@ -718,10 +697,7 @@ void	VulkanDevice::createImageWithInfo(
 	VkImage& image,
 	VkDeviceMemory& imageMemory)
 {
-	if (vkCreateImage(device_, &imageInfo, nullptr, &image) != VK_SUCCESS)
-	{
-		throw std::runtime_error("failed to create image!");
-	}
+	errorCheck(vkCreateImage(device_, &imageInfo, nullptr, &image), "failed to create image!");
 	VkMemoryRequirements memRequirements;
 	vkGetImageMemoryRequirements(device_, image, &memRequirements);
 
@@ -732,14 +708,8 @@ void	VulkanDevice::createImageWithInfo(
 		.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, properties)
 	};
 
-	if (vkAllocateMemory(device_, &allocInfo, nullptr, &imageMemory) != VK_SUCCESS)
-	{
-		throw std::runtime_error("failed to allocate image memory!");
-	}
-	if (vkBindImageMemory(device_, image, imageMemory, 0) != VK_SUCCESS)
-	{
-		throw std::runtime_error("failed to bind image memory!");
-	}
+	errorCheck(vkAllocateMemory(device_, &allocInfo, nullptr, &imageMemory), "failed to allocate image memory!");
+	errorCheck(vkBindImageMemory(device_, image, imageMemory, 0), "failed to bind image memory!");
 }
 
 void	VulkanDevice::transitionImageLayout(
@@ -838,10 +808,7 @@ VkImageView	VulkanDevice::createImageView(
 
 	VkImageView imageView{};
 
-	if (vkCreateImageView(device_, &viewInfo, nullptr, &imageView) != VK_SUCCESS)
-	{
-		throw std::runtime_error("failed to create texture image view!");
-	}
+	errorCheck(vkCreateImageView(device_, &viewInfo, nullptr, &imageView), "failed to create texture image view!");
 	return imageView;
 }
 

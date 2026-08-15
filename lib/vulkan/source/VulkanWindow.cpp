@@ -2,7 +2,6 @@
 #include <iostream>
 #include <cassert>
 
-
 namespace ve {
 
 VulkanWindow::VulkanWindow(const char* title, bool fullScreen, i32 width, i32 height) :

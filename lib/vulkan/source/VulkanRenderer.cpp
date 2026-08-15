@@ -20,7 +20,6 @@ VulkanRenderer::~VulkanRenderer()
 		static_cast<ui32>(commandBuffers.size()),
 		commandBuffers.data()
 	);
-	commandBuffers.clear();
 }
 
 void	VulkanRenderer::recreateSwapChain()

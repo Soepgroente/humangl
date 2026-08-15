@@ -3,56 +3,33 @@
 
 #include <cassert>
 
-
 namespace ve {
 
-VulkanShader::VulkanShader(VulkanDevice& device, VkShaderStageFlagBits shaderStageFlag, const std::string& shaderPath) : 
-	vulkanDevice{device}, shaderStageFlag{shaderStageFlag}, shaderModule{VK_NULL_HANDLE}
+
+VulkanPipeline::VulkanPipeline(
+	VulkanDevice& device,
+	const std::vector<VkDescriptorSetLayout>& descriptorSetLayouts,
+	VkRenderPass renderPass,
+	const std::string& vertexShaderFile,
+	const std::string& fragmentShaderFile,
+	const MeshLayoutDescription& meshLayout,
+	TextureType textureUsed,
+	ui32 sizePushConstants,
+	const VkConstants* constants
+) :
+vulkanDevice{device}, sizePushConstants{sizePushConstants}
 {
-	std::vector<unsigned char> content = readFile(shaderPath);
-	this->createModule(content);
+	setupPipelineLayout(descriptorSetLayouts);
+	setupPipeline(vertexShaderFile, fragmentShaderFile, meshLayout, textureUsed, renderPass, constants);
 }
 
-VulkanShader::VulkanShader(VulkanShader&& other) noexcept :
-	vulkanDevice{other.vulkanDevice}
+VulkanPipeline::~VulkanPipeline()
 {
-	if (this != &other)
-	{
-		this->shaderStageFlag = other.shaderStageFlag;
-		this->shaderModule = other.shaderModule;
-
-		other.shaderModule = VK_NULL_HANDLE;
-	}
+	vkDestroyPipeline(vulkanDevice.device(), pipeline, nullptr);
+	vkDestroyPipelineLayout(vulkanDevice.device(), pipelineLayout, nullptr);
 }
 
-VulkanShader::~VulkanShader() noexcept
-{
-	if (this->shaderModule != VK_NULL_HANDLE)
-	{
-		vkDestroyShaderModule(this->vulkanDevice.device(), this->shaderModule, nullptr);
-	}
-}
-
-void	VulkanShader::createModule(const std::vector<unsigned char>& fileContent)
-{
-	VkShaderModuleCreateInfo createInfo{};
-
-	createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-	createInfo.codeSize = fileContent.size();
-	createInfo.pCode = reinterpret_cast<const ui32*>(fileContent.data());
-
-	if (vkCreateShaderModule(
-			vulkanDevice.device(),
-			&createInfo,
-			nullptr,
-			&this->shaderModule) != VK_SUCCESS)
-	{
-		throw std::runtime_error("failed to create shader module!");
-	}
-}
-
-
-std::unique_ptr<VulkanPipeline> VulkanPipeline::createPipeline(
+std::unique_ptr<VulkanPipeline>	VulkanPipeline::createPipeline(
 	VulkanDevice& device,
 	const std::vector<VkDescriptorSetLayout>& descriptorSetLayouts,
 	VkRenderPass renderPass,
@@ -87,55 +64,25 @@ std::unique_ptr<VulkanPipeline> VulkanPipeline::createPipeline(
 	);
 }
 
-VulkanPipeline::VulkanPipeline(
-		VulkanDevice& device,
-		const std::vector<VkDescriptorSetLayout>& descriptorSetLayouts,
-		VkRenderPass renderPass,
-		const std::string& vertexShaderFile,
-		const std::string& fragmentShaderFile,
-		const MeshLayoutDescription& meshLayout,
-		TextureType textureUsed,
-		ui32 sizePushConstants,
-		const VkConstants* constants
-	) :
-	vulkanDevice{device}, sizePushConstants{sizePushConstants}
-{
-	this->setupPipelineLayout(descriptorSetLayouts);
-	this->setupPipeline(vertexShaderFile, fragmentShaderFile, meshLayout, textureUsed, renderPass, constants);
-}
-
-VulkanPipeline::~VulkanPipeline()
-{
-	if (this->pipeline != VK_NULL_HANDLE)
-	{
-		vkDestroyPipeline(this->vulkanDevice.device(), this->pipeline, nullptr);
-	}
-	if (this->pipelineLayout != VK_NULL_HANDLE)
-	{
-		vkDestroyPipelineLayout(this->vulkanDevice.device(), this->pipelineLayout, nullptr);
-	}
-}
-
 VulkanPipeline::VulkanPipeline(VulkanPipeline&& other) noexcept :
 	vulkanDevice{other.vulkanDevice}
 {
 	if (this != &other)
 	{
-		this->pipelineLayout = other.pipelineLayout;
-		this->pipeline = other.pipeline;
-		this->sizePushConstants = other.sizePushConstants;
-
+		pipelineLayout = other.pipelineLayout;
+		pipeline = other.pipeline;
+		sizePushConstants = other.sizePushConstants;
 		other.pipelineLayout = VK_NULL_HANDLE;
 		other.pipeline = VK_NULL_HANDLE;
 	}
 }
 
-void VulkanPipeline::bindPipeline(VkCommandBuffer commandBuffer) const noexcept
+void	VulkanPipeline::bindPipeline(VkCommandBuffer commandBuffer) const noexcept
 {
 	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, this->pipeline);
 }
 
-void VulkanPipeline::updatePushConstants(VkCommandBuffer commandBuffer, const void* data ) const noexcept
+void	VulkanPipeline::updatePushConstants(VkCommandBuffer commandBuffer, const void* data ) const noexcept
 {
 	assert(data != nullptr && "Data source null");
 
@@ -149,20 +96,23 @@ void VulkanPipeline::updatePushConstants(VkCommandBuffer commandBuffer, const vo
 	);
 }
 
-void VulkanPipeline::setupPipelineLayout(const std::vector<VkDescriptorSetLayout>& descriptorSetLayouts)
+void	VulkanPipeline::setupPipelineLayout(const std::vector<VkDescriptorSetLayout>& descriptorSetLayouts)
 {
-	VkPipelineLayoutCreateInfo	pipelineLayoutInfo{};
+	VkPipelineLayoutCreateInfo	pipelineLayoutInfo
+	{
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+		.setLayoutCount = static_cast<ui32>(descriptorSetLayouts.size()),
+		.pSetLayouts = descriptorSetLayouts.data()
+	};
 
-	pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-	pipelineLayoutInfo.setLayoutCount = static_cast<ui32>(descriptorSetLayouts.size());
-	pipelineLayoutInfo.pSetLayouts = descriptorSetLayouts.data();
-
-	VkPushConstantRange pushRange{};
 	if (this->sizePushConstants > 0U)
 	{
-		pushRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
-		pushRange.offset = 0;
-		pushRange.size = this->sizePushConstants;
+		VkPushConstantRange pushRange
+		{
+			.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+			.offset = 0,
+			.size = this->sizePushConstants
+		};
 
 		pipelineLayoutInfo.pushConstantRangeCount = 1;
 		pipelineLayoutInfo.pPushConstantRanges = &pushRange;
