@@ -145,15 +145,16 @@ void	VulkanRenderer::beginSwapChainRenderPass(VkCommandBuffer commandBuffer)
 
 	vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-	VkViewport	viewport{};
 	VkRect2D	scissor{{0, 0}, renderPassInfo.renderArea.extent};
-
-	viewport.x = 0.0f;
-	viewport.y = 0.0f;
-	viewport.width = static_cast<float>(renderPassInfo.renderArea.extent.width);
-	viewport.height = static_cast<float>(renderPassInfo.renderArea.extent.height);
-	viewport.minDepth = 0.0f;
-	viewport.maxDepth = 1.0f;
+	VkViewport	viewport
+	{
+		.x = 0.0f,
+		.y = 0.0f,
+		.width = static_cast<f32>(renderPassInfo.renderArea.extent.width),
+		.height = static_cast<f32>(renderPassInfo.renderArea.extent.height),
+		.minDepth = 0.0f,
+		.maxDepth = 1.0f
+	};
 	vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
 	vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 }

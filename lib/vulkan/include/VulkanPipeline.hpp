@@ -10,7 +10,7 @@
 
 namespace ve {
 
-struct VulkanPipelineConfig
+struct PipelineConfig
 {
 	VkPipelineVertexInputStateCreateInfo 		vertexInputInfo;
 	VkPipelineViewportStateCreateInfo			viewportInfo;
@@ -69,9 +69,9 @@ class VulkanPipeline
 
 	private:
 
-	void					setupPipelineLayout(const std::vector<VkDescriptorSetLayout>& descriptorSetLayouts );
-	void					setupPipeline(const std::string& vertexShaderFile, const std::string& fragmentShaderFile, const MeshLayoutDescription& meshLayout, TextureType textureUsed, VkRenderPass renderPass, const VkConstants* constants);
-	VulkanPipelineConfig	getPipelineConfig(const std::vector<VulkanShader>& shaders, const MeshLayoutDescription& meshLayout, const VkConstants* constants, TextureType textureUsed) const noexcept;
+	void			setupPipelineLayout(const std::vector<VkDescriptorSetLayout>& descriptorSetLayouts );
+	void			setupPipeline(const std::string& vertexShaderFile, const std::string& fragmentShaderFile, const MeshLayoutDescription& meshLayout, TextureType textureUsed, VkRenderPass renderPass, const VkConstants* constants);
+	PipelineConfig	getPipelineConfig(const std::vector<VulkanShader>& shaders, const MeshLayoutDescription& meshLayout, const VkConstants* constants, TextureType textureUsed) const noexcept;
 
 	VulkanDevice&		vulkanDevice;
 	VkPipelineLayout	pipelineLayout;

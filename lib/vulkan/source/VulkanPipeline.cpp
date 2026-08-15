@@ -113,18 +113,13 @@ void	VulkanPipeline::setupPipelineLayout(const std::vector<VkDescriptorSetLayout
 			.offset = 0,
 			.size = this->sizePushConstants
 		};
-
 		pipelineLayoutInfo.pushConstantRangeCount = 1;
 		pipelineLayoutInfo.pPushConstantRanges = &pushRange;
 	}
-
-	if (vkCreatePipelineLayout(this->vulkanDevice.device(), &pipelineLayoutInfo, nullptr, &this->pipelineLayout) != VK_SUCCESS)
-	{
-		throw std::runtime_error("failed to create pipeline layout!");
-	}
+	errorCheck(vkCreatePipelineLayout(this->vulkanDevice.device(), &pipelineLayoutInfo, nullptr, &this->pipelineLayout), "failed to create pipeline layout!");
 }
 
-void VulkanPipeline::setupPipeline(
+void	VulkanPipeline::setupPipeline(
 	const std::string& vertexShaderFile,
 	const std::string& fragmentShaderFile,
 	const MeshLayoutDescription& meshLayout,
@@ -132,34 +127,36 @@ void VulkanPipeline::setupPipeline(
 	VkRenderPass renderPass,
 	const VkConstants* constants)
 {
-	assert(this->pipelineLayout != nullptr && "Cannot create pipeline before pipeline layout");
+	assert(pipelineLayout != nullptr && "Cannot create pipeline before pipeline layout");
 
 	std::vector<ve::VulkanShader> shaders;
-	shaders.emplace_back(this->vulkanDevice, VK_SHADER_STAGE_VERTEX_BIT, vertexShaderFile);
-	shaders.emplace_back(this->vulkanDevice, VK_SHADER_STAGE_FRAGMENT_BIT, fragmentShaderFile);
+	shaders.emplace_back(vulkanDevice, VK_SHADER_STAGE_VERTEX_BIT, vertexShaderFile);
+	shaders.emplace_back(vulkanDevice, VK_SHADER_STAGE_FRAGMENT_BIT, fragmentShaderFile);
 
-	VulkanPipelineConfig pipelineConfig = this->getPipelineConfig(shaders, meshLayout, constants, textureUsed);
+	PipelineConfig pipelineConfig = getPipelineConfig(shaders, meshLayout, constants, textureUsed);
 
-	VkGraphicsPipelineCreateInfo pipelineInfo{};
-	pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-	pipelineInfo.stageCount = pipelineConfig.shadersConfig.size();
-	pipelineInfo.pStages = pipelineConfig.shadersConfig.data();
-	pipelineInfo.pVertexInputState = &pipelineConfig.vertexInputInfo;
-	pipelineInfo.pInputAssemblyState = &pipelineConfig.inputAssemblyInfo;
-	pipelineInfo.pViewportState = &pipelineConfig.viewportInfo;
-	pipelineInfo.pRasterizationState = &pipelineConfig.rasterizationInfo;
-	pipelineInfo.pMultisampleState = &pipelineConfig.multisampleInfo;
-	pipelineInfo.pColorBlendState = &pipelineConfig.colorBlendInfo;
-	pipelineInfo.pDepthStencilState = &pipelineConfig.depthStencilInfo;
-	pipelineInfo.pDynamicState = &pipelineConfig.dynamicStateInfo;
-	pipelineInfo.layout = this->pipelineLayout;
-	pipelineInfo.renderPass = renderPass;
-	pipelineInfo.subpass = 0;
-	pipelineInfo.basePipelineIndex = -1;
-	pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
+	VkGraphicsPipelineCreateInfo pipelineInfo
+	{
+		.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+		.stageCount = pipelineConfig.shadersConfig.size(),
+		.pStages = pipelineConfig.shadersConfig.data(),
+		.pVertexInputState = &pipelineConfig.vertexInputInfo,
+		.pInputAssemblyState = &pipelineConfig.inputAssemblyInfo,
+		.pViewportState = &pipelineConfig.viewportInfo,
+		.pRasterizationState = &pipelineConfig.rasterizationInfo,
+		.pMultisampleState = &pipelineConfig.multisampleInfo,
+		.pColorBlendState = &pipelineConfig.colorBlendInfo,
+		.pDepthStencilState = &pipelineConfig.depthStencilInfo,
+		.pDynamicState = &pipelineConfig.dynamicStateInfo,
+		.layout = this->pipelineLayout,
+		.renderPass = renderPass,
+		.subpass = 0,
+		.basePipelineIndex = -1,
+		.basePipelineHandle = VK_NULL_HANDLE
+	};
 
 	if (vkCreateGraphicsPipelines(
-		this->vulkanDevice.device(),
+		vulkanDevice.device(),
 		VK_NULL_HANDLE,
 		1,
 		&pipelineInfo,
@@ -171,11 +168,16 @@ void VulkanPipeline::setupPipeline(
 	}
 }
 
-VulkanPipelineConfig VulkanPipeline::getPipelineConfig(const std::vector<VulkanShader>& shaders, const MeshLayoutDescription& meshLayout, const VkConstants* constants, TextureType textureUsed) const noexcept
+PipelineConfig	VulkanPipeline::getPipelineConfig(
+	const std::vector<VulkanShader>& shaders,
+	const MeshLayoutDescription& meshLayout,
+	const VkConstants* constants,
+	TextureType textureUsed) const noexcept
 {
-	assert(this->pipelineLayout != nullptr && "Cannot create pipeline before pipeline layout");
+	assert(pipelineLayout != nullptr && "Cannot create pipeline before pipeline layout");
 
-	VulkanPipelineConfig configInfo{};
+	PipelineConfig configInfo{};
+
 	configInfo.bindingVboConfig = meshLayout.bindingConfig;
 	configInfo.attributeVboConfig = meshLayout.attributeConfig;
 	configInfo.vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
@@ -216,7 +218,6 @@ VulkanPipelineConfig VulkanPipeline::getPipelineConfig(const std::vector<VulkanS
 		configInfo.constantsInfo->dataSize = sizeof(VkConstants);
 		configInfo.constantsInfo->pData = constants;
 	}
-
 	configInfo.shadersConfig.resize(shaders.size());
 	for (ui32 i = 0; i < shaders.size(); i++)
 	{
@@ -244,6 +245,7 @@ VulkanPipelineConfig VulkanPipeline::getPipelineConfig(const std::vector<VulkanS
 	configInfo.rasterizationInfo.rasterizerDiscardEnable = VK_FALSE;
 	configInfo.rasterizationInfo.polygonMode = VK_POLYGON_MODE_FILL;
 	configInfo.rasterizationInfo.lineWidth = 1.0f;
+
 	if (textureUsed == TEXTURE_FONT || textureUsed == TEXTURE_CUBEMAP)
 	{
 		configInfo.rasterizationInfo.cullMode = VK_CULL_MODE_NONE;
@@ -252,7 +254,7 @@ VulkanPipelineConfig VulkanPipeline::getPipelineConfig(const std::vector<VulkanS
 	{
 		configInfo.rasterizationInfo.cullMode = VK_CULL_MODE_BACK_BIT;
 	}
-	configInfo.rasterizationInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+	configInfo.rasterizationInfo.frontFace = VK_FRONT_FACE_CLOCKWISE;
 	configInfo.rasterizationInfo.depthBiasEnable = VK_FALSE;
 	configInfo.rasterizationInfo.depthBiasConstantFactor = 0.0f;
 	configInfo.rasterizationInfo.depthBiasClamp = 0.0f;
