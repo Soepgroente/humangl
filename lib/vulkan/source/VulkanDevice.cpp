@@ -160,7 +160,7 @@ void VulkanDevice::pickPhysicalDevice()
 	}
 	else
 	{
-		throw std::runtime_error("failed to find a suitable GPU!");
+		throw std::runtime_error("failed to find a suitable render device!");
 	}
 }
 
@@ -222,6 +222,7 @@ void VulkanDevice::createLogicalDevice()
 		.descriptorBindingPartiallyBound = VK_TRUE,
 		.descriptorBindingVariableDescriptorCount = VK_TRUE
 	};
+	features13.pNext = &indexingFeatures;
 
 	// Query support first via features2 chain
 	VkPhysicalDeviceFeatures2 supportedFeatures2
@@ -229,7 +230,6 @@ void VulkanDevice::createLogicalDevice()
 		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
 		.pNext = &features13
 	};
-	features13.pNext = &indexingFeatures;
 
 	vkGetPhysicalDeviceFeatures2(physicalDevice, &supportedFeatures2);
 
