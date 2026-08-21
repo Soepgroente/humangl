@@ -194,7 +194,6 @@ void	VulkanSwapChain::createSwapChain()
 	}
 
 	errorCheck(vkCreateSwapchainKHR(device.device(), &createInfo, nullptr, &swapChain), "failed to create swap chain!");
-
 	vkGetSwapchainImagesKHR(device.device(), swapChain, &imageCount, nullptr);
 	swapChainImages.resize(imageCount);
 	vkGetSwapchainImagesKHR(device.device(), swapChain, &imageCount, swapChainImages.data());

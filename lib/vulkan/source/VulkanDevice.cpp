@@ -322,22 +322,12 @@ bool	VulkanDevice::isDeviceSuitable(VkPhysicalDevice device)
 
 	vkGetPhysicalDeviceFeatures2(device, &features2);
 
-	// Core features you already require
-	if (features2.features.samplerAnisotropy == false) return false;
-	if (features2.features.geometryShader == false) return false;
-
-	// If you rely on bindless/non-uniform indexing:
-	if (indexing.shaderSampledImageArrayNonUniformIndexing == false) return false;
-	if (indexing.runtimeDescriptorArray == false) return false;
-	// Optional but commonly needed in bindless designs:
-	if (indexing.descriptorBindingPartiallyBound == false) return false;
-	if (indexing.descriptorBindingVariableDescriptorCount == false) return false;
-
-	// If your renderer uses these Vulkan 1.3 features, enforce them:
-	// if (!features13.dynamicRendering) return false;
-	// if (!features13.synchronization2) return false;
-
-	return true;
+	return	features2.features.samplerAnisotropy == true &&
+			features2.features.geometryShader == true &&
+			indexing.shaderSampledImageArrayNonUniformIndexing == true &&
+			indexing.runtimeDescriptorArray == true &&
+			indexing.descriptorBindingPartiallyBound == true &&
+			indexing.descriptorBindingVariableDescriptorCount == true;
 }
 
 void	VulkanDevice::populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo)
